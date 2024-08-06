@@ -49,8 +49,12 @@ def MLP_CNN(no_of_sensor = 8, latent_dim = (4,8,32), n_base_features = 64):
 
 def MLP(no_of_sensor = 8, output_shape = (128,256,1), n_base_features = 64):
     inputs = keras.Input(shape = (no_of_sensor))
-    fc_1 = Dense(64, activation=LeakyReLU(0.2))(inputs)
-    fc_2 = Dense(128, activation=LeakyReLU(0.2))(fc_1)
+    fc_1 = Dense(64, activation=LeakyReLU(0.2), 
+                 kernel_regularizer=regularizers.L1L2(l1=1e-5, l2=1e-4), 
+                 bias_regularizer=regularizers.L1(1e-4))(inputs)
+    fc_2 = Dense(128, activation=LeakyReLU(0.2),
+                 kernel_regularizer=regularizers.L1L2(l1=1e-5, l2=1e-4), 
+                 bias_regularizer=regularizers.L1(1e-4))(fc_1)
     fc_5 = Dense(output_shape[0]*output_shape[1]*output_shape[2])(fc_2)
     output = Reshape(target_shape=output_shape)(fc_5)
     
