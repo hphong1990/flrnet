@@ -3,77 +3,32 @@ from tensorflow.keras import layers, regularizers
 from keras.layers import *
 import tensorflow as tf
 import numpy as np
-
-def conv_unit(feat_dim, kernel_size, x_in, padding="CONSTANT"):
-    """
-    Conv unit: x_in --> Conv k x k + relu --> Conv 1 x 1 + relu --> output
-    Parameter: 
-                - x_in (tensor): input tensor
-                - feat_dim (int): number of channels
-                - kernel_size (k) (int): size of convolution kernel
-                - padding (str): padding method to use
-    Return:
-                - (tensor): output of the conv unit
-    """
-    x = Conv2D(feat_dim, kernel_size, activation=LeakyReLU(0.2), padding="same")(x_in)
-    x = Conv2D(feat_dim, 1, activation=LeakyReLU(0.2), padding="same")(x)
-    return x
-
-def conv_block_down(x, feat_dim, reps, kernel_size, mode='normal', padding="CONSTANT"):
-    if mode == 'down':
-        x = MaxPooling2D(2,2)(x)
-    for _ in range(reps):
-        x = conv_unit(feat_dim, kernel_size, x, padding)
-    return x
-
-def conv_block_up_w_concat(x, x1, feat_dim, reps, kernel_size, mode='normal', padding="CONSTANT"):
-    if mode == 'up':
-        x = UpSampling2D((2,2),interpolation='bilinear')(x)
-    x = Concatenate()([x,x1])
-    for _ in range(reps):
-        x = conv_unit(feat_dim, kernel_size, x, padding)
-    return x
-
-def conv_block_up_wo_concat(x, feat_dim, reps, kernel_size, mode='normal', padding="CONSTANT"):
-    if mode == 'up':
-        x = UpSampling2D((2,2),interpolation='bilinear')(x)
-    for _ in range(reps):
-        x = conv_unit(feat_dim, kernel_size, x, padding)
-    return x
-
-class Sampling(layers.Layer):
-    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
-
-    def call(self, inputs):
-        z_mean, z_log_var = inputs
-
-        epsilon = tf.random.normal(shape=tf.shape(z_mean))
-        return z_mean + tf.exp(0.5 * z_log_var) * epsilon
+import layer as flr_layer
 
 # Encoder
 def vgg_encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
     inputs = keras.Input(shape = input_shape)
-    conv1 = conv_block_down(inputs,
+    conv1 = flr_layer.conv_block_down(inputs,
                             feat_dim = n_base_features,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'down')
-    conv2 = conv_block_down(conv1,
+    conv2 = flr_layer.conv_block_down(conv1,
                             feat_dim = n_base_features*2,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'down')
-    conv3 = conv_block_down(conv2,
+    conv3 = flr_layer.conv_block_down(conv2,
                             feat_dim = n_base_features*2,
                             reps = 2,
                             kernel_size = 3,
                             mode = 'down')
-    conv4 = conv_block_down(conv3,
+    conv4 = flr_layer.conv_block_down(conv3,
                             feat_dim = n_base_features*4,
                             reps = 2,
                             kernel_size = 3,
                             mode = 'down')
-    conv5 = conv_block_down(conv4,
+    conv5 = flr_layer.conv_block_down(conv4,
                             feat_dim = n_base_features*4,
                             reps = 2,
                             kernel_size = 3,
@@ -81,7 +36,7 @@ def vgg_encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64
     
     z_mean = layers.Conv2D(latent_dims,3, padding="same",name="z_mean")(conv5)
     z_log_var = layers.Conv2D(latent_dims,3, padding="same",name="z_log_var")(conv5)
-    z = Sampling()([z_mean,z_log_var])
+    z = flr_layer.Sampling()([z_mean,z_log_var])
     encoder = keras.Model(inputs, [z_mean,z_log_var,z])
     return encoder
 
@@ -90,27 +45,27 @@ def vgg_decoder(input_shape = (4,8,4), n_base_features = 64):
     inputs = keras.Input(shape = input_shape)
     conv_in = layers.Conv2D(n_base_features*4, 3, activation = LeakyReLU(0.2), padding="same")(inputs)
 
-    conv1 = conv_block_up_wo_concat(conv_in,
+    conv1 = flr_layer.conv_block_up_wo_concat(conv_in,
                             feat_dim = n_base_features*4,
                             reps = 2,
                             kernel_size = 3,
                             mode = 'up')
-    conv2 = conv_block_up_wo_concat(conv1,
+    conv2 = flr_layer.conv_block_up_wo_concat(conv1,
                             feat_dim = n_base_features*4,
                             reps = 2,
                             kernel_size = 3,
                             mode = 'up')
-    conv3 = conv_block_up_wo_concat(conv2,
+    conv3 = flr_layer.conv_block_up_wo_concat(conv2,
                             feat_dim = n_base_features*2,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'up')
-    conv4 = conv_block_up_wo_concat(conv3,
+    conv4 = flr_layer.conv_block_up_wo_concat(conv3,
                             feat_dim = n_base_features*2,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'up')
-    conv5 = conv_block_up_wo_concat(conv4,
+    conv5 = flr_layer.conv_block_up_wo_concat(conv4,
                             feat_dim = n_base_features,
                             reps = 1,
                             kernel_size = 3,
@@ -129,19 +84,13 @@ def create_mapping_operator(no_of_sensor = 8, latent_dim = (4,8,4)):
     latent_var = Reshape(target_shape=latent_dim)(fc_4)
     z_mean = layers.Conv2D(latent_dim[2],3, padding="same",name="z_mean")(latent_var)
     z_log_var = layers.Conv2D(latent_dim[2],3, padding="same",name="z_log_var")(latent_var)
-    z = Sampling()([z_mean,z_log_var])
+    z = flr_layer.Sampling()([z_mean,z_log_var])
     mapping = keras.Model(inputs, [z_mean,z_log_var,z])
     return mapping
-
-class Binary2RGB(layers.Layer):
-    """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""
-
-    def call(self, inputs):
-        return tf.image.grayscale_to_rgb(inputs)
-    
+  
 def vgg():
     inputs = keras.Input(shape = (128, 256,1))
-    rgb = Binary2RGB()(inputs)
+    rgb = flr_layer.Binary2RGB()(inputs)
     vgg = tf.keras.applications.inception_v3.InceptionV3(include_top=False,
                                                        weights='imagenet',
                                                        input_shape = (128,256,3),   
