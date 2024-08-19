@@ -164,7 +164,7 @@ def mapping_operator(no_of_sensor = 8, latent_dim = (4,8,4)):
 
 # Trainer class
 class AE(keras.Model):
-    def __init__(self,  n_sensor = 8, **kwargs):
+    def __init__(self,  **kwargs):
         super().__init__(**kwargs)
         self.encoder = encoder()
         self.decoder = decoder()
