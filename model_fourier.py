@@ -8,11 +8,11 @@ import layer as flr_layer
 # Encoder
 def encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
     inputs_img = keras.Input(shape = input_shape)
-    inputs_coord = keras.Input(shape = input_shape)
+    inputs_coord = keras.Input(shape =  (128,256,2))
     fourier_feat = flr_layer.FourierFeature(gaussian_projection=4, gaussian_scale=15)(inputs_coord)
 
     # Block 1
-    concat1 = layers.Concantenate()([fourier_feat,inputs_img])
+    concat1 = layers.Concatenate()([fourier_feat,inputs_img])
     conv1 = flr_layer.conv_block_down(concat1,
                             feat_dim = n_base_features,
                             reps = 1,
@@ -20,8 +20,8 @@ def encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
                             mode = 'down')
     
     # Block 2
-    fourier_feat2 = layers.AveragePooling()(fourier_feat)
-    concat2 = layers.Concantenate()([fourier_feat2,conv1])
+    fourier_feat2 = layers.AveragePooling2D()(fourier_feat)
+    concat2 = layers.Concatenate()([fourier_feat2,conv1])
     conv2 = flr_layer.conv_block_down(concat2,
                             feat_dim = n_base_features*2,
                             reps = 1,
@@ -29,8 +29,8 @@ def encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
                             mode = 'down')
 
     # Block 3
-    fourier_feat3 = layers.AveragePooling()(fourier_feat2)
-    concat3 = layers.Concantenate()([fourier_feat3,conv2])
+    fourier_feat3 = layers.AveragePooling2D()(fourier_feat2)
+    concat3 = layers.Concatenate()([fourier_feat3,conv2])
     conv3 = flr_layer.conv_block_down(concat3,
                             feat_dim = n_base_features*2,
                             reps = 1,
@@ -38,16 +38,16 @@ def encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
                             mode = 'down')
     
     # Block 4
-    fourier_feat4 = layers.AveragePooling()(fourier_feat3)
-    concat4 = layers.Concantenate()([fourier_feat4,conv3])
+    fourier_feat4 = layers.AveragePooling2D()(fourier_feat3)
+    concat4 = layers.Concatenate()([fourier_feat4,conv3])
     conv4 = flr_layer.conv_block_down(concat4,
                             feat_dim = n_base_features*4,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'down')
     # Block 5
-    fourier_feat5 = layers.AveragePooling()(fourier_feat4)
-    concat5 = layers.Concantenate()([fourier_feat5,conv4])
+    fourier_feat5 = layers.AveragePooling2D()(fourier_feat4)
+    concat5 = layers.Concatenate()([fourier_feat5,conv4])
     conv5 = flr_layer.conv_block_down(concat5,
                             feat_dim = n_base_features*4,
                             reps = 1,
@@ -64,50 +64,53 @@ def encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
 def decoder(input_shape = (4,8,4), img_shape = (128,256,1), n_base_features = 64):
     inputs = keras.Input(shape = input_shape)
     conv_in = layers.Conv2D(n_base_features*4, 3, activation = LeakyReLU(0.2), padding="same")(inputs)
-    target_coord = keras.Input(shape = img_shape)
+    target_coord = keras.Input(shape = (128,256,2))
     fourier_feat = flr_layer.FourierFeature(gaussian_projection=4, gaussian_scale=15)(target_coord)
-    fourier_feat2 = layers.AveragePooling()(fourier_feat)
-    fourier_feat3 = layers.AveragePooling()(fourier_feat2)
-    fourier_feat4 = layers.AveragePooling()(fourier_feat3)
-    fourier_feat5 = layers.AveragePooling()(fourier_feat4)
+    fourier_feat2 = layers.AveragePooling2D()(fourier_feat)
+    fourier_feat3 = layers.AveragePooling2D()(fourier_feat2)
+    fourier_feat4 = layers.AveragePooling2D()(fourier_feat3)
+    fourier_feat5 = layers.AveragePooling2D()(fourier_feat4)
+    fourier_feat6 = layers.AveragePooling2D()(fourier_feat5)
 
 
-    concat1 = layers.Concantenate()([fourier_feat5,conv_in])
+
+    concat1 = layers.Concatenate()([fourier_feat6,conv_in])
     conv1 = flr_layer.conv_block_up_wo_concat(concat1,
                             feat_dim = n_base_features*4,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'up')
     
-    concat2 = layers.Concantenate()([fourier_feat4,conv1])
+    concat2 = layers.Concatenate()([fourier_feat5,conv1])
     conv2 = flr_layer.conv_block_up_wo_concat(concat2,
                             feat_dim = n_base_features*4,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'up')
     
-    concat3 = layers.Concantenate()([fourier_feat3,conv2])
+    concat3 = layers.Concatenate()([fourier_feat4,conv2])
     conv3 = flr_layer.conv_block_up_wo_concat(concat3,
                             feat_dim = n_base_features*2,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'up')
     
-    concat4 = layers.Concantenate()([fourier_feat2,conv3])
+    concat4 = layers.Concatenate()([fourier_feat3,conv3])
     conv4 = flr_layer.conv_block_up_wo_concat(concat4,
                             feat_dim = n_base_features*2,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'up')
         
-    concat5 = layers.Concantenate()([fourier_feat,conv4])
+    concat5 = layers.Concatenate()([fourier_feat2,conv4])
     conv5 = flr_layer.conv_block_up_wo_concat(concat5,
                             feat_dim = n_base_features,
                             reps = 1,
                             kernel_size = 3,
                             mode = 'up')
     
-    conv_out = layers.Conv2D(1, 3, padding="same")(conv5)
+    concat6 = layers.Concatenate()([fourier_feat,conv5])
+    conv_out = layers.Conv2D(1, 3, padding="same")(concat6)
     decoder = keras.Model([inputs,target_coord], conv_out)
     return decoder
 
@@ -151,8 +154,11 @@ class FLRNet(keras.Model):
         super().__init__(**kwargs)
         self.encoder = encoder(input_shape = input_shape)
         self.encoder.trainable = False
+        # self.encoder.summary()
         self.decoder = decoder(input_shape = latent_shape)
         self.decoder.trainable = False
+        # self.decoder.summary()
+
         self.sens_mapping = sensor_mapping(no_of_sensor = n_sensor)
         # self.vgg19 = vgg()
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
@@ -189,10 +195,8 @@ class FLRNet(keras.Model):
     def train_step(self, data):
         sens_inp = tf.cast(data[0], dtype = tf.float32)
         img_inp = tf.cast(data[1],dtype = tf.float32)
-        x = tf.linspace(0, img_inp.shape[1], img_inp.shape[1])
-        y = tf.linspace(0, img_inp.shape[0], img_inp.shape[0])
-        coordX, coordY = tf.meshgrid(x, y)
-        input_coord = tf.concat([coordX,coordY], axis = -1)
+        input_coord = tf.cast(data[2],dtype = tf.float32)
+
         with tf.GradientTape() as tape:
             # Autoencoder
             z_mean_ae, z_log_var_ae, _ = self.encoder([img_inp,input_coord])
@@ -263,11 +267,9 @@ class VAE(keras.Model):
     def train_step(self, data):
         # sens_inp = tf.cast(data[0], dtype = tf.float32)
 
-        img_inp = tf.cast(data,dtype = tf.float32)
-        x = tf.linspace(0, img_inp.shape[1], img_inp.shape[1])
-        y = tf.linspace(0, img_inp.shape[0], img_inp.shape[0])
-        coordX, coordY = tf.meshgrid(x, y)
-        input_coord = tf.concat([coordX,coordY], axis = -1)
+        img_inp = tf.cast(data[0],dtype = tf.float32)
+
+        input_coord = tf.cast(data[1],dtype = tf.float32)
         with tf.GradientTape() as tape:
             # Autoencoder
             z_mean_ae, z_log_var_ae, z_ae = self.encoder([img_inp, input_coord])
