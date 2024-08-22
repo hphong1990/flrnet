@@ -6,7 +6,7 @@ import numpy as np
 import layer as flr_layer
 
 # Encoder
-def vgg_encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
+def encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64):
     inputs = keras.Input(shape = input_shape)
     conv1 = flr_layer.conv_block_down(inputs,
                             feat_dim = n_base_features,
@@ -41,7 +41,7 @@ def vgg_encoder(latent_dims = 4, input_shape = (128,256,1), n_base_features = 64
     return encoder
 
 # Decoder
-def vgg_decoder(input_shape = (4,8,4), n_base_features = 64):
+def decoder(input_shape = (4,8,4), n_base_features = 64):
     inputs = keras.Input(shape = input_shape)
     conv_in = layers.Conv2D(n_base_features*4, 3, activation = LeakyReLU(0.2), padding="same")(inputs)
 
@@ -74,7 +74,7 @@ def vgg_decoder(input_shape = (4,8,4), n_base_features = 64):
     decoder = keras.Model(inputs, conv_out)
     return decoder
 
-def create_mapping_operator(no_of_sensor = 8, latent_dim = (4,8,4)):
+def sensor_mapping(no_of_sensor = 8, latent_dim = (4,8,4)):
     inputs = keras.Input(shape = (no_of_sensor))
     fc_1 = Dense(128, activation=LeakyReLU(0.2))(inputs)
     bn_1 = BatchNormalization()(fc_1)
@@ -110,16 +110,14 @@ def vgg():
 
 # Trainer class
 class FLRNet(keras.Model):
-    def __init__(self,  n_sensor = 8, **kwargs):
+    def __init__(self,  n_sensor = 8, input_shape = (128, 256, 1), latent_shape = (4,8,4), **kwargs): # Latent shape = input shape /32, and has to be 4 feature
         super().__init__(**kwargs)
-        self.encoder = vgg_encoder()
+        self.encoder = encoder(input_shape = input_shape)
         self.encoder.trainable = False
-        self.decoder = vgg_decoder()
+        self.decoder = decoder(input_shape = latent_shape)
         self.decoder.trainable = False
-        self.sens_mapping = create_mapping_operator(no_of_sensor=n_sensor)
+        self.sens_mapping = sensor_mapping(no_of_sensor = n_sensor)
         self.vgg19 = vgg()
-    
-
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
         self.sens_reconstruction_loss_tracker = keras.metrics.Mean(
             name="reconstruction_loss_sens"
@@ -133,6 +131,7 @@ class FLRNet(keras.Model):
             self.sens_reconstruction_loss_tracker,
             self.sens_kl_loss_tracker,
         ]
+    
     def kld(self, mean_1, mean_2, z_log_var_1, z_log_var_2):
         var_1 = tf.exp(z_log_var_1)
         var_2 = tf.exp(z_log_var_2)
@@ -183,10 +182,10 @@ class FLRNet(keras.Model):
 
 # Trainer class
 class VAE(keras.Model):
-    def __init__(self,  n_sensor = 8, **kwargs):
+    def __init__(self, input_shape = (128, 256, 1), latent_shape = (4,8,4),**kwargs):
         super().__init__(**kwargs)
-        self.encoder = vgg_encoder()
-        self.decoder = vgg_decoder()
+        self.encoder = encoder(input_shape = input_shape)
+        self.decoder = decoder(input_shape = latent_shape)
         self.vgg19 = vgg()
     
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
@@ -223,7 +222,7 @@ class VAE(keras.Model):
     def train_step(self, data):
         # sens_inp = tf.cast(data[0], dtype = tf.float32)
 
-        img_inp = tf.cast(data[1],dtype = tf.float32)
+        img_inp = tf.cast(data,dtype = tf.float32)
         with tf.GradientTape() as tape:
             # Autoencoder
             z_mean_ae, z_log_var_ae, z_ae = self.encoder(img_inp)
