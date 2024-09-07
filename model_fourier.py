@@ -211,7 +211,7 @@ class FLRNet(keras.Model):
 
             # perceptual_loss_sens = self.perceptual_loss(reconstruction_sens,img_inp)
 
-            total_loss = reconstruction_loss_sens + kl_loss_sens
+            total_loss = reconstruction_loss_sens + 2*kl_loss_sens
             
         grads = tape.gradient(total_loss, self.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
