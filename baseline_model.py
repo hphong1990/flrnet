@@ -251,23 +251,19 @@ class FLRNetAE(keras.Model):
 # POD-based method
 def MLP_POD(no_of_sensor = 8, output_shape = 128, n_base_features = 64):
     inputs = keras.Input(shape = (no_of_sensor))
-    fc_1 = Dense(64, activation='relu', 
-                 kernel_regularizer=regularizers.L2(1e-3), 
-                 bias_regularizer=regularizers.L2(1e-3))(inputs)
+    fc_1 = Dense(128, activation=LeakyReLU(0.2))(inputs)
     bn_1 = BatchNormalization()(fc_1)
-    fc_2 = Dense(128, activation='relu',
-                 kernel_regularizer=regularizers.L2(1e-3), 
-                 bias_regularizer=regularizers.L2(1e-3))(bn_1)
+    fc_2 = Dense(256, activation=LeakyReLU(0.2))(bn_1)
     bn_2 = BatchNormalization()(fc_2)
 
-    fc_3 = Dense(256, activation='relu',
-                 kernel_regularizer=regularizers.L2(1e-3), 
-                 bias_regularizer=regularizers.L2(1e-3))(bn_2)
+    fc_3 = Dense(512, activation=LeakyReLU(0.2))(bn_2)
     bn_3 = BatchNormalization()(fc_3)
 
-    fc_5 = Dense(output_shape[0]*output_shape[1]*output_shape[2])(bn_3)
 
-    output = Reshape(target_shape=output_shape)(fc_5)
+    fc_4 = Dense(256, activation=LeakyReLU(0.2))(bn_3)
+    bn_4 = BatchNormalization()(fc_4)
+
+    fc_5 = Dense(output_shape)(bn_4)
     
-    mlp_pod = keras.Model(inputs, output)
+    mlp_pod = keras.Model(inputs, fc_5)
     return mlp_pod
