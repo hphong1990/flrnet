@@ -88,7 +88,7 @@ def sensor_mapping(no_of_sensor = 8, latent_dim = (4,8,4)):
     fc_4 = Dense(256, activation=LeakyReLU(0.2))(bn_3)
     bn_4 = BatchNormalization()(fc_4)
 
-    fc_5 = Dense(128)(bn_4)
+    fc_5 = Dense(latent_dim[0]*latent_dim[1]*latent_dim[2])(bn_4)
     latent_var = Reshape(target_shape=latent_dim)(fc_5)
     z_mean = layers.Conv2D(latent_dim[2],3, padding="same",name="z_mean")(latent_var)
     z_log_var = layers.Conv2D(latent_dim[2],3, padding="same",name="z_log_var")(latent_var)

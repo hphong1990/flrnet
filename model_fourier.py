@@ -116,7 +116,8 @@ def decoder(input_shape = (4,8,4), img_shape = (128,256,1), n_base_features = 64
 
 def sensor_mapping(no_of_sensor = 8, latent_dim = (4,8,4)):
     inputs = keras.Input(shape = (no_of_sensor))
-    fc_1 = Dense(128, activation=LeakyReLU(0.2))(inputs)
+    noise = GaussianNoise(0.1)(inputs)
+    fc_1 = Dense(128, activation=LeakyReLU(0.2))(noise)
     bn_1 = BatchNormalization()(fc_1)
     fc_2 = Dense(256, activation=LeakyReLU(0.2))(bn_1)
     bn_2 = BatchNormalization()(fc_2)
