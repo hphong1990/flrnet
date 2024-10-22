@@ -180,8 +180,8 @@ class FLRNet(keras.Model):
         var_1 = tf.exp(z_log_var_1)
         var_2 = tf.exp(z_log_var_2)
         kl_loss = ( 
-            tf.math.log((var_2 / var_1) ** 0.5) 
-              + (var_1 + (mean_1 - mean_2) ** 2) / (2 * var_2) 
+            tf.math.log((var_2 / (var_1 + 1e-6)) ** 0.5) 
+              + (var_1 + (mean_1 - mean_2) ** 2) / (2 * var_2  + 1e-6) 
               - 0.5
            )
         return kl_loss
