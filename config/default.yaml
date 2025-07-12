@@ -1,0 +1,42 @@
+# Default Configuration for Flow Field Reconstruction Training
+# Basic setup with edge sensors, no Fourier, with perceptual loss
+
+# Model Architecture
+model:
+  use_fourier: false
+  use_perceptual_loss: true
+  input_shape: [128, 256, 1]
+  latent_dims: 4
+  n_base_features: 64
+
+# Sensor Configuration
+sensors:
+  layout: "edge"          # Options: edge, circular, random
+  n_sensors: 8            # Options: 8, 16, 32
+
+# Training Parameters
+training:
+  vae_epochs: 100
+  flr_epochs: 200
+  vae_learning_rate: 0.0001
+  flr_learning_rate: 0.00005
+  batch_size: 8
+  test_split: 0.2
+  shuffle_buffer: 1000
+  patience: 15
+  reduce_lr_patience: 7
+  gradient_clip_norm: 1.0      # Gradient clipping norm (1.0 is conservative)
+
+# Data Configuration
+data:
+  dataset_base_path: "data/datasets"
+  
+# Output Configuration
+output:
+  checkpoint_base_dir: "./checkpoints"
+  logs_base_dir: "./logs"
+  save_best_model: true
+  save_last_model: true
+
+# Reproducibility
+random_seed: 42

@@ -1,45 +1,154 @@
 from tensorflow import keras
 from tensorflow.keras import layers, regularizers
-from keras.layers import *
 import tensorflow as tf
 import numpy as np
 
-def conv_unit(feat_dim, kernel_size, x_in, padding="CONSTANT"):
-    """
-    Conv unit: x_in --> Conv k x k + relu --> Conv 1 x 1 + relu --> output
-    Parameter: 
-                - x_in (tensor): input tensor
-                - feat_dim (int): number of channels
-                - kernel_size (k) (int): size of convolution kernel
-                - padding (str): padding method to use
-    Return:
-                - (tensor): output of the conv unit
-    """
-    x = Conv2D(feat_dim, kernel_size, activation=LeakyReLU(0.2), padding="same")(x_in)
-    x = Conv2D(feat_dim, 1, activation=LeakyReLU(0.2), padding="same")(x)
-    return x
+# Create a custom Conv block layer class instead of using functions
+class ConvBlock(layers.Layer):
+    def __init__(self, feat_dim, reps=1, kernel_size=3, mode='normal', **kwargs):
+        super().__init__(**kwargs)
+        self.feat_dim = feat_dim
+        self.reps = reps
+        self.kernel_size = kernel_size
+        self.mode = mode
+        
+        self.pool = None
+        if self.mode == 'down':
+            self.pool = layers.MaxPooling2D(2, 2)
+        elif self.mode == 'up':
+            self.up = layers.UpSampling2D((2, 2), interpolation='bilinear')
+            
+        # Create layers for each repetition
+        self.conv_layers = []
+        self.leaky_relus = []
+        self.conv1x1_layers = []
+        self.leaky_relu1x1s = []
+        
+        for _ in range(self.reps):
+            self.conv_layers.append(layers.Conv2D(self.feat_dim, self.kernel_size, padding="same"))
+            self.leaky_relus.append(layers.LeakyReLU(0.2))
+            self.conv1x1_layers.append(layers.Conv2D(self.feat_dim, 1, padding="same"))
+            self.leaky_relu1x1s.append(layers.LeakyReLU(0.2))
+    
+    def call(self, inputs, training=None):
+        x = inputs
+        if self.mode == 'down' and self.pool is not None:
+            x = self.pool(x)
+        elif self.mode == 'up':
+            x = self.up(x)
+            
+        # Apply conv blocks
+        for i in range(self.reps):
+            x = self.conv_layers[i](x)
+            x = self.leaky_relus[i](x)
+            x = self.conv1x1_layers[i](x)
+            x = self.leaky_relu1x1s[i](x)
+        
+        return x
 
+# Define functions that use the layer
 def conv_block_down(x, feat_dim, reps, kernel_size, mode='normal', padding="CONSTANT"):
-    if mode == 'down':
-        x = MaxPooling2D(2,2)(x)
-    for _ in range(reps):
-        x = conv_unit(feat_dim, kernel_size, x, padding)
-    return x
+    """Use ConvBlock class with down mode"""
+    # Create the block with an explicit name scope to avoid variable creation issues
+    block = ConvBlock(feat_dim=feat_dim, reps=reps, kernel_size=kernel_size, 
+                     mode='down' if mode == 'down' else 'normal', 
+                     name=f"down_block_{feat_dim}")
+    return block(x)
 
+# Create a class for up blocks with concatenation
+class UpBlockWithConcat(layers.Layer):
+    def __init__(self, feat_dim, reps=1, kernel_size=3, mode='normal', **kwargs):
+        super().__init__(**kwargs)
+        self.feat_dim = feat_dim
+        self.reps = reps
+        self.kernel_size = kernel_size
+        self.mode = mode
+        
+        if self.mode == 'up':
+            self.up = layers.UpSampling2D((2, 2), interpolation='bilinear')
+            
+        self.concat = layers.Concatenate()
+            
+        # Create layers for each repetition
+        self.conv_layers = []
+        self.leaky_relus = []
+        self.conv1x1_layers = []
+        self.leaky_relu1x1s = []
+        
+        for _ in range(self.reps):
+            self.conv_layers.append(layers.Conv2D(self.feat_dim, self.kernel_size, padding="same"))
+            self.leaky_relus.append(layers.LeakyReLU(0.2))
+            self.conv1x1_layers.append(layers.Conv2D(self.feat_dim, 1, padding="same"))
+            self.leaky_relu1x1s.append(layers.LeakyReLU(0.2))
+    
+    def call(self, inputs, training=None):
+        x, x1 = inputs
+        if self.mode == 'up':
+            x = self.up(x)
+            
+        x = self.concat([x, x1])
+            
+        # Apply conv blocks
+        for i in range(self.reps):
+            x = self.conv_layers[i](x)
+            x = self.leaky_relus[i](x)
+            x = self.conv1x1_layers[i](x)
+            x = self.leaky_relu1x1s[i](x)
+        
+        return x
+
+# Create a class for up blocks without concatenation
+class UpBlockWithoutConcat(layers.Layer):
+    def __init__(self, feat_dim, reps=1, kernel_size=3, mode='normal', **kwargs):
+        super().__init__(**kwargs)
+        self.feat_dim = feat_dim
+        self.reps = reps
+        self.kernel_size = kernel_size
+        self.mode = mode
+        
+        if self.mode == 'up':
+            self.up = layers.UpSampling2D((2, 2), interpolation='bilinear')
+            
+        # Create layers for each repetition
+        self.conv_layers = []
+        self.leaky_relus = []
+        self.conv1x1_layers = []
+        self.leaky_relu1x1s = []
+        
+        for _ in range(self.reps):
+            self.conv_layers.append(layers.Conv2D(self.feat_dim, self.kernel_size, padding="same"))
+            self.leaky_relus.append(layers.LeakyReLU(0.2))
+            self.conv1x1_layers.append(layers.Conv2D(self.feat_dim, 1, padding="same"))
+            self.leaky_relu1x1s.append(layers.LeakyReLU(0.2))
+    
+    def call(self, inputs, training=None):
+        x = inputs
+        if self.mode == 'up':
+            x = self.up(x)
+            
+        # Apply conv blocks
+        for i in range(self.reps):
+            x = self.conv_layers[i](x)
+            x = self.leaky_relus[i](x)
+            x = self.conv1x1_layers[i](x)
+            x = self.leaky_relu1x1s[i](x)
+        
+        return x
+
+# Define functions that use these layers
 def conv_block_up_w_concat(x, x1, feat_dim, reps, kernel_size, mode='normal', padding="CONSTANT"):
-    if mode == 'up':
-        x = UpSampling2D((2,2),interpolation='bilinear')(x)
-    x = Concatenate()([x,x1])
-    for _ in range(reps):
-        x = conv_unit(feat_dim, kernel_size, x, padding)
-    return x
+    """Use UpBlockWithConcat class"""
+    block = UpBlockWithConcat(feat_dim=feat_dim, reps=reps, kernel_size=kernel_size, 
+                             mode='up' if mode == 'up' else 'normal',
+                             name=f"up_concat_block_{feat_dim}")
+    return block([x, x1])
 
 def conv_block_up_wo_concat(x, feat_dim, reps, kernel_size, mode='normal', padding="CONSTANT"):
-    if mode == 'up':
-        x = UpSampling2D((2,2),interpolation='bilinear')(x)
-    for _ in range(reps):
-        x = conv_unit(feat_dim, kernel_size, x, padding)
-    return x
+    """Use UpBlockWithoutConcat class"""
+    block = UpBlockWithoutConcat(feat_dim=feat_dim, reps=reps, kernel_size=kernel_size, 
+                                mode='up' if mode == 'up' else 'normal',
+                                name=f"up_block_{feat_dim}")
+    return block(x)
 
 class Sampling(layers.Layer):
     """Uses (z_mean, z_log_var) to sample z, the vector encoding a digit."""

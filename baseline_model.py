@@ -3,7 +3,7 @@ from tensorflow.keras import layers, regularizers
 from keras.layers import *
 import tensorflow as tf
 import numpy as np
-import layer as flr_layer
+import model.layer as flr_layer
 
 # def MLP_CNN(no_of_sensor = 8, latent_dim = (4,8,32), n_base_features = 64):
 #     inputs = keras.Input(shape = (no_of_sensor))
