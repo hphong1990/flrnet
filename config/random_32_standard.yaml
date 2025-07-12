@@ -16,9 +16,9 @@ sensors:
 # Training Parameters
 training:
   vae_epochs: 100
-  flr_epochs: 200
+  flr_epochs: 150
   vae_learning_rate: 0.0001
-  flr_learning_rate: 0.00005
+  flr_learning_rate: 0.0001
   batch_size: 8
   test_split: 0.2
   shuffle_buffer: 1000

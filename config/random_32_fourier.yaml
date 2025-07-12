@@ -4,7 +4,7 @@
 # Model Architecture
 model:
   use_fourier: true
-  use_perceptual_loss: true
+  use_perceptual_loss: false
   input_shape: [128, 256, 1]
   latent_dims: 8
   n_base_features: 64
