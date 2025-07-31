@@ -838,8 +838,19 @@ class FLRNet(keras.Model):
             z_mean_sensor, z_log_var_sensor, z_sensor = self.sensor_mapping(sensor_input, training=training)
             reconstruction = self.decoder([z_sensor, coord_input], training=training)
         else:
-            # Standard mode - only sensor input
-            sensor_input = inputs
+            # Standard mode - handle different input formats properly
+            if isinstance(inputs, (list, tuple)):
+                # Training mode: [sensor_data, field_data] or inference with single sensor
+                if len(inputs) >= 2:
+                    # Training mode: use sensor data (first input), ignore field data for inference
+                    sensor_input = inputs[0]
+                else:
+                    # Single input in list format
+                    sensor_input = inputs[0]
+            else:
+                # Direct sensor input (inference mode)
+                sensor_input = inputs
+            
             z_mean_sensor, z_log_var_sensor, z_sensor = self.sensor_mapping(sensor_input, training=training)
             reconstruction = self.decoder(z_sensor, training=training)
         
@@ -1457,28 +1468,39 @@ class FLRTrainer:
         print(f"   - Latent dims: {getattr(self.flr_model, 'latent_dims', 'Unknown')}")
         print(f"   - Use Fourier: {getattr(self.flr_model, 'use_fourier', self.use_fourier)}")
         
-        # Handle perceptual loss override for FLRNet (affects VAE component)
-        if hasattr(self.flr_model, 'autoencoder') and self.flr_model.autoencoder is not None:
-            original_perceptual_loss = getattr(self.flr_model.autoencoder, 'use_perceptual_loss', True)
-            if use_perceptual_loss is not None:
-                # Override the perceptual loss setting in the VAE component
-                self.flr_model.autoencoder.use_perceptual_loss = use_perceptual_loss
-                print(f"   - Perceptual loss: {use_perceptual_loss} ({'OVERRIDDEN' if use_perceptual_loss != original_perceptual_loss else 'KEPT from checkpoint'})")
+        # Handle perceptual loss override for FLRNet model
+        original_flrnet_perceptual_loss = getattr(self.flr_model, 'use_perceptual_loss', True)
+        if use_perceptual_loss is not None and use_perceptual_loss != original_flrnet_perceptual_loss:
+            print(f"🔄 FLRNet perceptual loss: {original_flrnet_perceptual_loss} → {use_perceptual_loss} (OVERRIDDEN)")
+            
+            # Override the perceptual loss setting in the FLRNet model
+            self.flr_model.use_perceptual_loss = use_perceptual_loss
+            
+            # Update FLRNet perceptual loss components
+            if use_perceptual_loss and not hasattr(self.flr_model, 'perceptual_loss_tracker'):
+                self.flr_model.perceptual_loss_tracker = keras.metrics.Mean(name="perceptual_loss")
+                if not hasattr(self.flr_model, 'perceptual_model'):
+                    self.flr_model._build_perceptual_model()
+                print("   - FLRNet perceptual loss tracker initialized")
+            elif not use_perceptual_loss and hasattr(self.flr_model, 'perceptual_loss_tracker'):
+                delattr(self.flr_model, 'perceptual_loss_tracker')
+                print("   - FLRNet perceptual loss tracker removed")
                 
-                # Ensure perceptual loss tracker exists if needed
+            # Also update VAE component if it exists (for consistency)
+            if hasattr(self.flr_model, 'autoencoder') and self.flr_model.autoencoder is not None:
+                self.flr_model.autoencoder.use_perceptual_loss = use_perceptual_loss
+                
                 if use_perceptual_loss and not hasattr(self.flr_model.autoencoder, 'perceptual_loss_tracker'):
                     self.flr_model.autoencoder.perceptual_loss_tracker = keras.metrics.Mean(name="perceptual_loss")
                     if not hasattr(self.flr_model.autoencoder, 'perceptual_model'):
                         self.flr_model.autoencoder._build_perceptual_model()
-                    print("   - Perceptual loss tracker initialized for VAE component")
+                    print("   - VAE component perceptual loss tracker also updated")
                 elif not use_perceptual_loss and hasattr(self.flr_model.autoencoder, 'perceptual_loss_tracker'):
-                    # Remove perceptual loss tracker if disabling
                     delattr(self.flr_model.autoencoder, 'perceptual_loss_tracker')
-                    print("   - Perceptual loss tracker removed from VAE component")
-            else:
-                print(f"   - Perceptual loss: {original_perceptual_loss} (KEPT from checkpoint)")
+                    print("   - VAE component perceptual loss tracker also removed")
         else:
-            print(f"   - Perceptual loss: Not applicable (no VAE component found)")
+            perceptual_status = "ENABLED" if original_flrnet_perceptual_loss else "DISABLED"
+            print(f"🔄 FLRNet perceptual loss: {perceptual_status} (KEPT from checkpoint)")
         
         print(f"\n🎯 Training Configuration:")
         print(f"   - Additional epochs: {epochs}")

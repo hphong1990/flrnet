@@ -1,0 +1,49 @@
+# MLP Configuration for Edge Sensors with 32 sensors
+
+# Model Architecture  
+model:
+  type: "mlp"
+  use_fourier: false
+  use_perceptual_loss: false
+  input_shape: [128, 256, 1]
+  hidden_layers: [512, 1024, 2048, 4096, 8192]
+  activation: "relu"
+  dropout_rate: 0.3
+  use_batch_norm: true
+  gradient_clip_norm: 1.0
+
+# Sensor Configuration
+sensors:
+  layout: "edge" 
+  n_sensors: 32
+
+# Training Parameters
+training:
+  mlp_epochs: 200
+  learning_rate: 0.00005
+  batch_size: 8
+  validation_split: 0.2
+  patience: 25
+  reduce_lr_patience: 8
+  shuffle_buffer: 2192
+
+# Data Configuration
+data:
+  data_path: "E:/Research/Data/flow_field_recon"
+  Re_list_train: [300, 400, 450, 500, 600, 650, 700, 800, 850, 900, 1000]
+  Re_list_test: [350, 550, 750, 950]
+  normalization: "minmax"
+
+# Checkpointing
+checkpoints:
+  save_best_model: true
+  save_last_model: true
+  checkpoint_dir: "./checkpoints"
+  logs_dir: "./logs"
+
+# Visualization
+visualization:
+  n_examples: 5
+  save_plots: false
+  plot_format: "png"
+  plot_dpi: 300

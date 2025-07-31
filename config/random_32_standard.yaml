@@ -11,20 +11,20 @@ model:
 # Sensor Configuration
 sensors:
   layout: "random"
-  n_sensors: 8
+  n_sensors: 32
 
 # Training Parameters
 training:
   vae_epochs: 100
-  flr_epochs: 150
+  flr_epochs: 250
   vae_learning_rate: 0.0001
   flr_learning_rate: 0.0001
   batch_size: 8
   test_split: 0.2
   shuffle_buffer: 1000
-  patience: 15
-  reduce_lr_patience: 7
-  gradient_clip_norm: 1.0      # Gradient clipping norm (1.0 is conservative)
+  patience: 100
+  reduce_lr_patience: 20
+  gradient_clip_norm: 2.0      # Gradient clipping norm (1.0 is conservative)
 
 # Data Configuration
 data:
