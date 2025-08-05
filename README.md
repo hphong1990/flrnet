@@ -58,7 +58,7 @@ Flow field reconstruction from limited sensor data is a fundamental challenge in
    
    Download the required datasets and pre-trained model checkpoints from the following link:
    
-   **📎 Data & Checkpoints Download:** `[INSERT DOWNLOAD LINK HERE]`
+   **📎 Data & Checkpoints Download:** `https://www.dropbox.com/scl/fi/8uyelgwq17kgo3b5k1ulf/flrnet_data.zip?rlkey=eun4logz43j75krcc7eobhwy2&st=0g2eh5bd&dl=0`
    
    Extract the downloaded files to the following directories:
    ```
