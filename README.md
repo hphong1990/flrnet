@@ -10,12 +10,12 @@ Flow field reconstruction from limited sensor data is a fundamental challenge in
 
 1. **FLRNet Architecture**: A novel variational autoencoder with Fourier feature layers that learns rich, low-dimensional latent representations of flow fields
 2. **Perceptual Loss Integration**: Addresses spectral bias issues that lead to smooth and blurry reconstructed fields
-3. **Comprehensive Evaluation**: Systematic comparison across different Reynolds numbers, sensor configurations, and noise conditions
-4. **Superior Performance**: Consistently outperforms baseline methods with improved accuracy and noise robustness
+3. **Fourier Features**: Use Fourier feature layers to address spectral bias issue
+4. **Comprehensive Evaluation**: Systematic comparison across different Reynolds numbers, sensor configurations, and noise conditions
 
 ### 🧠 **Implemented Methods**
 
-- **FLRNet (Flow Learning Reconstruction Network)**: Our proposed architecture combining VAE with sensor mapping for precise flow field reconstruction
+- **FLRNet (Fluid Flow Reconstruction Network)**: Our proposed architecture combining VAE with sensor mapping for precise flow field reconstruction
 - **VAE (Variational Autoencoder)**: For learning compressed representations of flow fields with optional Fourier feature embeddings
 - **MLP (Multi-Layer Perceptron)**: Direct sensor-to-field mapping without intermediate representation
 - **POD (Proper Orthogonal Decomposition)**: Classical reduced-order modeling approach with neural network enhancement
@@ -56,7 +56,11 @@ Flow field reconstruction from limited sensor data is a fundamental challenge in
 
 2. **Download Data and Checkpoints**
    
-   Download the required datasets and pre-trained model checkpoints from the provided link and extract them to:
+   Download the required datasets and pre-trained model checkpoints from the following link:
+   
+   **📎 Data & Checkpoints Download:** `[INSERT DOWNLOAD LINK HERE]`
+   
+   Extract the downloaded files to the following directories:
    ```
    data/datasets/          # Training/testing data
    data/sensor_layouts/    # Sensor layout data
@@ -216,10 +220,6 @@ If you use this code in your research, please cite our paper:
 ## 📄 License
 
 See LICENSE file for details.
-
-## 📚 Citation
-
-If you use this code in your research, please cite the associated publication.
 
 ---
 
