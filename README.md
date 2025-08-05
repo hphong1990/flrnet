@@ -1,12 +1,21 @@
 # Flow Field Reconstruction with Physics-Informed Machine Learning
 
-This repository implements physics-informed machine learning approaches for reconstructing flow fields from sparse sensor measurements. The project includes multiple neural network architectures optimized for different reconstruction scenarios.
+This repository implements **FLRNet**, a novel deep learning method for reconstructing flow fields from sparse sensor measurements, as presented in our paper "[FLRNet: A Deep Learning Method for Regressive Reconstruction of Flow Field From Limited Sensor Measurements](https://arxiv.org/abs/2411.13815)".
 
 ## 🚀 Project Overview
 
-The repository provides comprehensive solutions for flow field reconstruction using:
+Flow field reconstruction from limited sensor data is a fundamental challenge in computational and experimental fluid mechanics. Traditional methods often fail due to the ill-conditioned and non-invertible nature of the measurement operator. This repository provides **FLRNet** and baseline comparison methods to address this challenge.
 
-- **FLRNet (Flow Learning Reconstruction Network)**: A novel architecture combining VAE with sensor mapping for precise flow field reconstruction
+### 🏆 **Key Contributions**
+
+1. **FLRNet Architecture**: A novel variational autoencoder with Fourier feature layers that learns rich, low-dimensional latent representations of flow fields
+2. **Perceptual Loss Integration**: Addresses spectral bias issues that lead to smooth and blurry reconstructed fields
+3. **Comprehensive Evaluation**: Systematic comparison across different Reynolds numbers, sensor configurations, and noise conditions
+4. **Superior Performance**: Consistently outperforms baseline methods with improved accuracy and noise robustness
+
+### 🧠 **Implemented Methods**
+
+- **FLRNet (Flow Learning Reconstruction Network)**: Our proposed architecture combining VAE with sensor mapping for precise flow field reconstruction
 - **VAE (Variational Autoencoder)**: For learning compressed representations of flow fields with optional Fourier feature embeddings
 - **MLP (Multi-Layer Perceptron)**: Direct sensor-to-field mapping without intermediate representation
 - **POD (Proper Orthogonal Decomposition)**: Classical reduced-order modeling approach with neural network enhancement
@@ -36,13 +45,16 @@ The repository provides comprehensive solutions for flow field reconstruction us
 
 ### Prerequisites
 - Python 3.8+
-- TensorFlow 2.8+
-- NumPy, Matplotlib, SciPy
-- Jupyter Notebook
+- Required packages listed in `requirements.txt`
 
 ### Quick Start
 
-1. **Download Data and Checkpoints**
+1. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Download Data and Checkpoints**
    
    Download the required datasets and pre-trained model checkpoints from the provided link and extract them to:
    ```
@@ -52,9 +64,9 @@ The repository provides comprehensive solutions for flow field reconstruction us
    checkpoints/           # Pre-trained model weights
    ```
 
-2. **Install Dependencies**
+3. **Verify Installation**
    ```bash
-   pip install tensorflow numpy matplotlib scipy jupyter
+   python -c "import tensorflow as tf; print('TensorFlow version:', tf.__version__)"
    ```
 
 ## 🎯 Usage
@@ -149,8 +161,7 @@ Each checkpoint directory contains:
 
 The repository includes comprehensive evaluation tools:
 
-- **Reconstruction Accuracy**: MSE, MAE, SSIM
-- **Physical Constraints**: Divergence-free validation
+- **Reconstruction Accuracy**: MSE, MAE
 - **Spectral Analysis**: Frequency domain comparison
 - **Visualization**: Flow field plots, error maps, sensor layouts
 
@@ -183,7 +194,24 @@ train_vae_model = True
 
 ## 🤝 Contributing
 
-This repository is part of ongoing research in deep learning for fluid flow field reconstruction. Contributions and improvements are welcome.
+This repository is part of ongoing research in physics-informed deep learning for fluid flow field reconstruction. Contributions and improvements are welcome.
+
+## 📚 Citation
+
+If you use this code in your research, please cite our paper:
+
+```bibtex
+@article{nguyen2024flrnet,
+  title={FLRNet: A Deep Learning Method for Regressive Reconstruction of Flow Field From Limited Sensor Measurements},
+  author={Nguyen, Phong C. H. and Choi, Joseph B. and Luu, Quang-Trung},
+  journal={arXiv preprint arXiv:2411.13815},
+  year={2024},
+  url={https://arxiv.org/abs/2411.13815}
+}
+```
+
+**Paper Abstract:**
+> Many applications in computational and experimental fluid mechanics require effective methods for reconstructing flow fields from limited sensor data. However, this task remains a significant challenge because the measurement operator is often ill-conditioned and non-invertible. We introduce FLRNet, a deep learning method for flow field reconstruction from sparse sensor measurements. FLRNet employs a variational autoencoder with Fourier feature layers and incorporates an extra perceptual loss term during training to learn a rich, low-dimensional latent representation of the flow field. Numerical experiments show that FLRNet consistently outperformed other baselines, delivering the most accurate reconstructed flow field and being the most robust to noise.
 
 ## 📄 License
 
