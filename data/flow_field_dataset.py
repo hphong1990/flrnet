@@ -33,7 +33,9 @@ class FlowFieldDatasetCreator:
                  time_steps: int = 39,
                  reynolds_numbers: List[int] = None,
                  test_data_file: str = None,
-                 use_synthetic_data: bool = False):
+                 use_synthetic_data: bool = False,
+                 enable_caching: bool = True,
+                 cache_dir: str = None):
         """
         Initialize the FlowFieldDatasetCreator.
         
@@ -86,6 +88,18 @@ class FlowFieldDatasetCreator:
         self.obstacle_radius = 22
         self.flow_region_y_start = 80  # Start of flow region in y-direction
         
+        # Add caching support
+        self.enable_caching = enable_caching
+        self.cache_dir = Path(cache_dir or self.output_path / "cache")
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._coordinate_grid_cache = None
+        
+        print(f"📊 Dataset Creator initialized:")
+        print(f"   Domain shape: {domain_shape}")
+        print(f"   Caching: {'✅ ENABLED' if enable_caching else '❌ DISABLED'}")
+        if enable_caching:
+            print(f"   Cache directory: {self.cache_dir}")
+
     def latin_hypercube_sampling(self, n: int, k: int) -> np.ndarray:
         """
         Generate Latin Hypercube Sampling points.
@@ -1049,3 +1063,387 @@ class FlowFieldDatasetCreator:
         print("   • Edge layouts capture boundary layer effects")
         if load_from_saved:
             print("   • Saved layouts ensure consistency across experiments")
+
+
+class FlowFieldDataset:
+    """
+    Unified dataset loader for flow field reconstruction training.
+    Compatible with config_manager and unified training workflows.
+    """
+    
+    def __init__(self, config_manager):
+        """Initialize FlowFieldDataset with config manager."""
+        self.config = config_manager.get_config()
+        self.data_path = self.config.get('data_path', 'E:/Research/Data/flow_field_recon')
+        self.n_sensors = self.config['n_sensors']
+        self.sensor_layout = self.config.get('sensor_layout', 'edge')
+        
+        # Dataset parameters
+        self.Re_train = self.config.get('Re_list_train', [300, 400, 450, 500, 600, 650, 700, 800, 850, 900, 1000])
+        self.Re_test = self.config.get('Re_list_test', [350, 550, 750, 950])
+        self.normalization = self.config.get('normalization', 'minmax')
+        
+        # Data storage
+        self.sensor_data_train = None
+        self.field_data_train = None
+        self.sensor_data_test = None
+        self.field_data_test = None
+        self.min_val = None
+        self.max_val = None
+        
+    def load_data(self):
+        """Load and preprocess training and test data."""
+        print(f"📊 Loading data for {self.n_sensors} {self.sensor_layout} sensors...")
+        
+        # Load training data
+        sensor_data_list = []
+        field_data_list = []
+        
+        for Re in self.Re_train:
+            # Load sensor data
+            if self.sensor_layout == 'circular':
+                sensor_file = f"{self.data_path}/circular_sensor_pos_data/sensor_data_cir_{self.n_sensors}_{Re}.npy"
+            elif self.sensor_layout == 'edge':
+                sensor_file = f"{self.data_path}/edge_sensor_pos_data/sensor_data_edge_{self.n_sensors}_{Re}.npy"
+            elif self.sensor_layout == 'random':
+                sensor_file = f"{self.data_path}/random_sensor_data/sensor_data_{self.n_sensors}_{Re}.npy"
+            else:
+                raise ValueError(f"Unknown sensor layout: {self.sensor_layout}")
+            
+            # Load field data
+            field_file = f"{self.data_path}/full_field_data/full_field_data_{Re}.npy"
+            
+            try:
+                sensor_data = np.load(sensor_file)
+                field_data = np.load(field_file)
+                sensor_data_list.append(sensor_data)
+                field_data_list.append(field_data)
+                print(f"   ✅ Loaded Re={Re}: sensor {sensor_data.shape}, field {field_data.shape}")
+            except FileNotFoundError as e:
+                print(f"   ❌ Missing file for Re={Re}: {e}")
+                continue
+        
+        # Concatenate and format training data
+        self.sensor_data_train = np.swapaxes(np.concatenate(sensor_data_list, axis=-1), 0, 1)
+        self.field_data_train = np.swapaxes(
+            np.expand_dims(np.concatenate(field_data_list, axis=-1), axis=0), 0, -1
+        )
+        
+        # Load test data
+        sensor_data_test_list = []
+        field_data_test_list = []
+        
+        for Re in self.Re_test:
+            # Load sensor data
+            if self.sensor_layout == 'circular':
+                sensor_file = f"{self.data_path}/circular_sensor_pos_data/sensor_data_cir_{self.n_sensors}_{Re}.npy"
+            elif self.sensor_layout == 'edge':
+                sensor_file = f"{self.data_path}/edge_sensor_pos_data/sensor_data_edge_{self.n_sensors}_{Re}.npy"
+            elif self.sensor_layout == 'random':
+                sensor_file = f"{self.data_path}/random_sensor_data/sensor_data_{self.n_sensors}_{Re}.npy"
+            else:
+                raise ValueError(f"Unknown sensor layout: {self.sensor_layout}")
+            
+            # Load field data
+            field_file = f"{self.data_path}/full_field_data/full_field_data_{Re}.npy"
+            
+            try:
+                sensor_data = np.load(sensor_file)
+                field_data = np.load(field_file)
+                sensor_data_test_list.append(sensor_data)
+                field_data_test_list.append(field_data)
+                print(f"   ✅ Loaded test Re={Re}: sensor {sensor_data.shape}, field {field_data.shape}")
+            except FileNotFoundError as e:
+                print(f"   ❌ Missing test file for Re={Re}: {e}")
+                continue
+        
+        # Concatenate and format test data
+        self.sensor_data_test = np.swapaxes(np.concatenate(sensor_data_test_list, axis=-1), 0, 1)
+        self.field_data_test = np.swapaxes(
+            np.expand_dims(np.concatenate(field_data_test_list, axis=-1), axis=0), 0, -1
+        )
+        
+        # Normalize data
+        self._normalize_data()
+        
+        print(f"✅ Data loading completed!")
+        print(f"   Training: sensor {self.sensor_data_train.shape}, field {self.field_data_train.shape}")
+        print(f"   Test: sensor {self.sensor_data_test.shape}, field {self.field_data_test.shape}")
+    
+    def _normalize_data(self):
+        """Normalize data using min-max scaling."""
+        if self.normalization == 'minmax':
+            # Use field data for normalization range
+            self.min_val = np.min(self.field_data_train)
+            self.max_val = np.max(self.field_data_train)
+            
+            # Normalize training data
+            self.field_data_train = (self.field_data_train - self.min_val) / (self.max_val - self.min_val)
+            self.sensor_data_train = (self.sensor_data_train - self.min_val) / (self.max_val - self.min_val)
+            
+            # Normalize test data
+            self.field_data_test = (self.field_data_test - self.min_val) / (self.max_val - self.min_val)
+            self.sensor_data_test = (self.sensor_data_test - self.min_val) / (self.max_val - self.min_val)
+            
+            print(f"   Normalization: [{self.min_val:.6f}, {self.max_val:.6f}] -> [0, 1]")
+            print(f"   Field range: [{np.min(self.field_data_train):.3f}, {np.max(self.field_data_train):.3f}]")
+            print(f"   Sensor range: [{np.min(self.sensor_data_train):.3f}, {np.max(self.sensor_data_train):.3f}]")
+    
+    def get_tf_datasets(self, batch_size=8, validation_split=0.2):
+        """Create TensorFlow datasets for training, validation, and testing."""
+        if self.sensor_data_train is None:
+            raise ValueError("Data not loaded! Call load_data() first.")
+        
+        # Create training dataset
+        train_dataset = tf.data.Dataset.from_tensor_slices((
+            self.sensor_data_train.astype(np.float32),
+            self.field_data_train.astype(np.float32)
+        ))
+        
+        # Shuffle and split for validation
+        dataset_size = len(self.sensor_data_train)
+        train_size = int((1 - validation_split) * dataset_size)
+        
+        train_dataset = train_dataset.shuffle(buffer_size=dataset_size, seed=42)
+        val_dataset = train_dataset.skip(train_size)
+        train_dataset = train_dataset.take(train_size)
+        
+        # Batch datasets
+        train_dataset = train_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        val_dataset = val_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        # Create test dataset
+        test_dataset = tf.data.Dataset.from_tensor_slices((
+            self.sensor_data_test.astype(np.float32),
+            self.field_data_test.astype(np.float32)
+        ))
+        test_dataset = test_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        print(f"📈 Created TensorFlow datasets:")
+        print(f"   Training batches: {tf.data.experimental.cardinality(train_dataset)}")
+        print(f"   Validation batches: {tf.data.experimental.cardinality(val_dataset)}")
+        print(f"   Test batches: {tf.data.experimental.cardinality(test_dataset)}")
+        
+        return train_dataset, val_dataset, test_dataset
+    
+    def denormalize(self, data):
+        """Convert normalized data back to original scale."""
+        if self.min_val is None or self.max_val is None:
+            raise ValueError("Normalization parameters not available!")
+        return data * (self.max_val - self.min_val) + self.min_val
+
+    def _get_coordinate_grid_cached(self, batch_size: int, height: int, width: int) -> tf.Tensor:
+        """Get coordinate grid with caching to avoid repeated computation."""
+        cache_key = f"coord_grid_{height}_{width}"
+        
+        if self._coordinate_grid_cache is None:
+            self._coordinate_grid_cache = {}
+        
+        if cache_key not in self._coordinate_grid_cache:
+            # Create coordinate grid once and cache it
+            x_coords = tf.linspace(0.0, 1.0, width)
+            y_coords = tf.linspace(0.0, 1.0, height)
+            y_grid, x_grid = tf.meshgrid(y_coords, x_coords, indexing='ij')
+            coord_grid = tf.stack([x_grid, y_grid], axis=-1)
+            self._coordinate_grid_cache[cache_key] = coord_grid
+            print(f"📝 Cached coordinate grid for {height}×{width}")
+        
+        # Tile for batch size
+        coord_grid = self._coordinate_grid_cache[cache_key]
+        coord_batch = tf.tile(tf.expand_dims(coord_grid, 0), [batch_size, 1, 1, 1])
+        return coord_batch
+
+    def create_tensorflow_dataset_optimized(self, dataset: Dict[str, np.ndarray], 
+                                          batch_size: int = 16, 
+                                          shuffle: bool = True,
+                                          test_split: float = 0.2,
+                                          prefetch_buffer: int = tf.data.AUTOTUNE,
+                                          num_parallel_calls: int = tf.data.AUTOTUNE) -> Tuple[tf.data.Dataset, tf.data.Dataset]:
+        """
+        Optimized TensorFlow dataset creation with performance improvements.
+        
+        Optimizations:
+        - Pre-computed coordinate grids
+        - Efficient data types
+        - Parallel processing
+        - Memory-efficient reshaping
+        - Caching support
+        """
+        print("🚀 Creating optimized TensorFlow datasets...")
+        
+        # Get data arrays with efficient dtypes
+        sensor_data = dataset['sensor_data'].astype(np.float32)    # (n_re, n_sensors, time_steps)
+        field_data = dataset['field_data'].astype(np.float32)      # (n_re, height, width, time_steps)
+        
+        n_cases, n_sensors, time_steps = sensor_data.shape
+        n_cases_f, height, width, time_steps_f = field_data.shape
+        
+        # Verify shapes are consistent
+        assert n_cases == n_cases_f, f"Inconsistent number of cases: {n_cases} vs {n_cases_f}"
+        assert time_steps == time_steps_f, f"Inconsistent time steps: {time_steps} vs {time_steps_f}"
+        
+        print(f"📊 Dataset info:")
+        print(f"   Cases: {n_cases}, Sensors: {n_sensors}, Time steps: {time_steps}")
+        print(f"   Field shape: {height}×{width}")
+        print(f"   Total samples: {n_cases * time_steps}")
+        
+        # Pre-compute coordinate grid (done once, not per batch)
+        print("🔧 Pre-computing coordinate grids...")
+        x_coords = np.linspace(0.0, 1.0, width, dtype=np.float32)
+        y_coords = np.linspace(0.0, 1.0, height, dtype=np.float32)
+        y_grid, x_grid = np.meshgrid(y_coords, x_coords, indexing='ij')
+        coord_grid = np.stack([x_grid, y_grid], axis=-1).astype(np.float32)  # (height, width, 2)
+        
+        # Efficient reshaping - avoid copying when possible
+        print("🔄 Reshaping data efficiently...")
+        
+        # Reshape sensor data: (n_re, n_sensors, time_steps) -> (batch, n_sensors)
+        # where batch = n_re * time_steps
+        sensor_data_reshaped = sensor_data.transpose(0, 2, 1).reshape(-1, n_sensors)
+        
+        # Reshape field data: (n_re, height, width, time_steps) -> (batch, height, width, 1)
+        # where batch = n_re * time_steps
+        field_data_reshaped = field_data.transpose(0, 3, 1, 2).reshape(-1, height, width, 1)
+        
+        # Create coordinate data for all samples by tiling the pre-computed grid
+        n_samples = sensor_data_reshaped.shape[0]
+        coord_data = np.tile(coord_grid[np.newaxis, :, :, :], (n_samples, 1, 1, 1))
+        
+        print(f"📦 Reshaped data:")
+        print(f"   Sensor data: {sensor_data_reshaped.shape}")
+        print(f"   Field data: {field_data_reshaped.shape}")
+        print(f"   Coordinate data: {coord_data.shape}")
+        
+        # Create train/test split
+        n_train = int(n_samples * (1 - test_split))
+        
+        if shuffle:
+            indices = np.random.permutation(n_samples)
+        else:
+            indices = np.arange(n_samples)
+        
+        train_indices = indices[:n_train]
+        test_indices = indices[n_train:]
+        
+        # Create optimized TensorFlow datasets with efficient data pipeline
+        print("⚡ Creating efficient TensorFlow datasets...")
+        
+        # Training dataset
+        train_dataset = tf.data.Dataset.from_tensor_slices({
+            'sensor_data': sensor_data_reshaped[train_indices],
+            'field_data': field_data_reshaped[train_indices],
+            'coordinates': coord_data[train_indices]
+        })
+        
+        # Test dataset
+        test_dataset = tf.data.Dataset.from_tensor_slices({
+            'sensor_data': sensor_data_reshaped[test_indices],
+            'field_data': field_data_reshaped[test_indices],
+            'coordinates': coord_data[test_indices]
+        })
+        
+        # Apply optimizations
+        if shuffle:
+            train_dataset = train_dataset.shuffle(
+                buffer_size=min(10000, len(train_indices)), 
+                reshuffle_each_iteration=True
+            )
+        
+        # Batch and prefetch with optimizations
+        train_dataset = (train_dataset
+                        .batch(batch_size, drop_remainder=False)
+                        .prefetch(prefetch_buffer))
+        
+        test_dataset = (test_dataset
+                       .batch(batch_size, drop_remainder=False)
+                       .prefetch(prefetch_buffer))
+        
+        print(f"✅ Optimized TensorFlow datasets created:")
+        print(f"   Train samples: {len(train_indices)}")
+        print(f"   Test samples: {len(test_indices)}")
+        print(f"   Batch size: {batch_size}")
+        print(f"   Prefetch buffer: {prefetch_buffer}")
+        
+        return train_dataset, test_dataset
+
+    def profile_dataset_loading(self, dataset_path: str) -> Dict[str, float]:
+        """
+        Profile dataset loading to identify bottlenecks.
+        
+        Args:
+            dataset_path: Path to dataset file
+            
+        Returns:
+            Dictionary with timing information
+        """
+        import time
+        
+        print("📊 Profiling dataset loading performance...")
+        
+        timings = {}
+        
+        # Time file loading
+        start = time.time()
+        data = np.load(dataset_path)
+        timings['file_load'] = time.time() - start
+        
+        # Time data extraction
+        start = time.time()
+        dataset_dict = {key: data[key] for key in data.keys()}
+        timings['data_extraction'] = time.time() - start
+        
+        # Time coordinate grid creation
+        start = time.time()
+        height, width = 128, 256  # Example dimensions
+        x_coords = np.linspace(0.0, 1.0, width, dtype=np.float32)
+        y_coords = np.linspace(0.0, 1.0, height, dtype=np.float32)
+        y_grid, x_grid = np.meshgrid(y_coords, x_coords, indexing='ij')
+        coord_grid = np.stack([x_grid, y_grid], axis=-1)
+        timings['coordinate_grid'] = time.time() - start
+        
+        # Time data reshaping
+        start = time.time()
+        sensor_data = dataset_dict['sensor_data']
+        field_data = dataset_dict['field_data']
+        n_cases, n_sensors, time_steps = sensor_data.shape
+        sensor_reshaped = sensor_data.transpose(0, 2, 1).reshape(-1, n_sensors)
+        field_reshaped = field_data.transpose(0, 3, 1, 2).reshape(-1, height, width, 1)
+        timings['data_reshaping'] = time.time() - start
+        
+        # Time TensorFlow dataset creation
+        start = time.time()
+        tf_dataset = tf.data.Dataset.from_tensor_slices({
+            'sensor_data': sensor_reshaped[:1000].astype(np.float32),  # Sample subset
+            'field_data': field_reshaped[:1000].astype(np.float32)
+        })
+        tf_dataset = tf_dataset.batch(16).prefetch(1)
+        # Force evaluation
+        for _ in tf_dataset.take(1):
+            pass
+        timings['tf_dataset_creation'] = time.time() - start
+        
+        # Calculate file size
+        file_size_mb = Path(dataset_path).stat().st_size / (1024 * 1024)
+        
+        print(f"\n⏱️  Performance Profile:")
+        print(f"   File size: {file_size_mb:.1f} MB")
+        print(f"   File loading: {timings['file_load']:.3f}s")
+        print(f"   Data extraction: {timings['data_extraction']:.3f}s")
+        print(f"   Coordinate grids: {timings['coordinate_grid']:.3f}s")
+        print(f"   Data reshaping: {timings['data_reshaping']:.3f}s")
+        print(f"   TF dataset creation: {timings['tf_dataset_creation']:.3f}s")
+        print(f"   Total time: {sum(timings.values()):.3f}s")
+        
+        # Identify bottlenecks
+        max_time = max(timings.values())
+        bottleneck = max(timings.keys(), key=lambda k: timings[k])
+        print(f"\n🚨 Bottleneck: {bottleneck} ({timings[bottleneck]:.3f}s)")
+        
+        if file_size_mb > 100:
+            print("💡 Large file size detected - consider data compression or chunking")
+        if timings['coordinate_grid'] > 0.1:
+            print("💡 Coordinate grid creation is slow - enable caching")
+        if timings['data_reshaping'] > 1.0:
+            print("💡 Data reshaping is slow - consider pre-processed datasets")
+        
+        return timings

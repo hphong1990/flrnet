@@ -23,7 +23,7 @@ import os
 from pathlib import Path
 from typing import Tuple, Dict, Optional, List, Union, Any
 import json
-import layer as flr_layer
+import nn.layer as flr_layer
 
 
 class NaNMonitorCallback(callbacks.Callback):
